@@ -353,3 +353,63 @@ def obtener_boleta_por_orden(numero_orden: str) -> Optional[Dict[str, Any]]:
     finally:
         try: conn.close()
         except: pass
+
+# ===========================
+# BOLETA → HTML imprimible
+# ===========================
+from typing import Dict
+
+def _fmt_chl(n: float) -> str:
+    try:
+        return f"${int(round(float(n))):,}".replace(",", ".")
+    except Exception:
+        return str(n)
+
+def boleta_a_html(boleta: Dict[str, any]) -> str:
+    # cuerpo de la tabla de ítems
+    rows = []
+    for it in boleta.get("items", []):
+        producto = it.get("producto", "")
+        cant = int(it.get("cantidad", 0))
+        precio = float(it.get("precio", 0))
+        rows.append(
+            f"<tr><td>{producto}</td>"
+            f"<td style='text-align:right'>{cant}</td>"
+            f"<td style='text-align:right'>{_fmt_chl(precio)}</td></tr>"
+        )
+    rows_html = "\n".join(rows) or "<tr><td colspan='3'>(Sin ítems)</td></tr>"
+
+    html = f"""<!doctype html>
+<html><head>
+<meta charset="utf-8">
+<title>Boleta {boleta['numero_boleta']}</title>
+<style>
+  body {{ font-family: Arial, sans-serif; margin: 24px; }}
+  h1 {{ margin-bottom: 4px; }}
+  .small {{ color: #555; }}
+  table {{ width: 100%; border-collapse: collapse; margin-top: 16px; }}
+  th, td {{ border-bottom: 1px solid #eee; padding: 8px; }}
+  tfoot td {{ border-top: 2px solid #333; font-weight: bold; }}
+</style>
+</head><body>
+  <h1>Boleta {boleta['numero_boleta']}</h1>
+  <div class="small">Orden: {boleta['numero_orden']} &nbsp;&nbsp;|&nbsp;&nbsp; Fecha: {boleta['creado_en']}</div>
+  <p><strong>Cliente:</strong> {boleta['cliente']}<br>
+     <strong>Dirección:</strong> {boleta['direccion']}, {boleta['comuna']}, {boleta['region']}<br>
+     <strong>Teléfono:</strong> {boleta['telefono']}</p>
+
+  <table>
+    <thead>
+      <tr><th>Producto</th><th style="text-align:right">Cant.</th><th style="text-align:right">Precio</th></tr>
+    </thead>
+    <tbody>
+      {rows_html}
+    </tbody>
+    <tfoot>
+      <tr><td colspan="2" style="text-align:right">Neto</td><td style="text-align:right">{_fmt_chl(boleta['neto'])}</td></tr>
+      <tr><td colspan="2" style="text-align:right">IVA 19%</td><td style="text-align:right">{_fmt_chl(boleta['iva'])}</td></tr>
+      <tr><td colspan="2" style="text-align:right">Total a pagar</td><td style="text-align:right">{_fmt_chl(boleta['total'])}</td></tr>
+    </tfoot>
+  </table>
+</body></html>"""
+    return html
