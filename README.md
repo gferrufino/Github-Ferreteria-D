@@ -1,44 +1,61 @@
-# 🛠️ **Sistema de Gestión de Órdenes de Compra — Ferretería**
+# 🛠️ Sistema de Gestión de Órdenes de Compra — Ferretería-D
 
 ---
 
-## 📋 **Descripción del Proyecto**
+## 📋 Descripción del Proyecto
 
-Este proyecto consiste en un sistema web desarrollado con **Python** y **Streamlit** para la gestión de **Órdenes de Compra** en una ferretería.  
-Permite registrar nuevas órdenes, almacenarlas en una base de datos **SQLite**, listar las órdenes registradas y controlar el acceso mediante un **login seguro**.
+Este proyecto consiste en un sistema web desarrollado con **Python** y **Streamlit** para la gestión integral de una Ferretería.  
+Permite registrar órdenes de compra, emitir boletas con IVA, despachar productos a clientes, gestionar usuarios mediante login seguro y automatizar procesos mediante **CI/CD con GitHub Actions**.
 
----
-
-## 👥 **Integrantes del Grupo**
-
-- 👨‍💻 **Abraham López** _(Dev)_
-- 👨‍🎓 **Gabriel Ferrufino** _(Dev)_
-- 👨‍🎓 **Jorge Albornoz** _(Dev)_
+El sistema utiliza **SQLite** como motor de base de datos y está diseñado siguiendo buenas prácticas de control de versiones usando ramas `feature`, `dev`, `qa` y `main`.
 
 ---
 
-## ⚙️ **Requerimientos Técnicos y Librerías Usadas**
+## 👥 Integrantes del Grupo
 
-### 🧰 **Tecnologías**
-
-- **Lenguaje:** Python 3.10 o superior
-- **Framework UI:** Streamlit
-- **Base de Datos:** SQLite
-- **Entorno de Desarrollo:** Visual Studio Code
-- **Control de Versiones:** Git + GitHub
+- 👨‍💻 **Abraham López** (Dev)
+- 👨‍💻 **Gabriel Ferrufino** (Dev)
+- 👨‍💻 **Jorge Albornoz** (Dev)
 
 ---
 
-### 📦 **Librerías**
+## 🎯 Requerimientos Funcionales (RF)
 
-| Librería             | Uso Principal                                     |
-| -------------------- | ------------------------------------------------- |
-| `streamlit`          | Interfaz web interactiva                          |
-| `sqlite3`            | Conexión con la base de datos SQLite              |
-| `hashlib`, `secrets` | Hash y seguridad de contraseñas                   |
-| `json`               | Almacenamiento de ítems de compra en formato JSON |
+| Código | Descripción | Estado |
+|--------|-------------|--------|
+| **RF1** | Registro de órdenes de compra | ✔ Implementado |
+| **RF2** | Login y control de usuario | ✔ Implementado |
+| **RF3** | Menú principal (Home, Registrar, Listar) | ✔ Implementado |
+| **RF4** | Emisión de boleta/factura con IVA (19%) | ✔ Implementado |
+| **RF5** | Envío de productos con confirmación | ✔ Implementado |
+| **RF6** | Pipeline CI/CD usando GitHub Actions (YAML) | ✔ Implementado |
 
-**Instalación rápida:**
+---
+
+## ⚙️ Tecnologías Utilizadas
+
+### 🧰 Tecnologías principales
+
+- **Python 3.11**
+- **Streamlit** (Frontend Web)
+- **SQLite** (Base de datos)
+- **Git y GitHub**
+- **GitHub Actions** (CI/CD)
+
+### 📦 Librerías usadas
+
+| Librería      | Uso |
+|---------------|-----|
+| `streamlit`   | Interfaz web |
+| `pandas`      | Manejo de datos |
+| `sqlite3`     | Conexión BD SQLite |
+| `json`        | Manejo de ítems de órdenes |
+| `hashlib`     | Hash de contraseñas |
+| `secrets`     | Tokens seguros |
+
+Instalación rápida:
+
+
 
 ```bash
 pip install streamlit
@@ -84,18 +101,30 @@ Abre esa dirección en tu navegador.
 
 🧱 Estructura del Proyecto
 Proyecto_Empresa/
-├── src/
-│   ├── app.py
-│   ├── login.py
-│   ├── orden_compra.py
-│   ├── menu.py
-│   └── __init__.py
-│
 ├── database/
-│   └── proyecto.db
+│ └── proyecto.db
 │
 ├── evidencias/
+│ ├── Evidencia Commits 1.png
+│ ├── Evidencia Commits 2.png
+│ ├── Evidencia Merge dev a qa.png
+│ ├── Evidencia Merge qa a main.png
+│ ├── Evidencia Merge.png
+│ ├── ramas.png
+│ └── Tablero Kanban.png
 │
-├── README.md
-└── .gitignore
-```
+├── github/
+│ └── workflows/
+│ └── pipeline.yml ← (CI/CD)
+│
+├── src/
+│ ├── pycache/
+│ ├── app.py ← Aplicación principal Streamlit
+│ ├── db.py ← Conexión y configuración BD
+│ ├── login.py ← Login + usuarios
+│ ├── menu.py ← Navegación UI
+│ ├── orden_compra.py ← Órdenes, boletas, envíos
+│ └── init.py
+│
+├── .gitignore
+└── README.md
