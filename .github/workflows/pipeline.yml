@@ -46,6 +46,12 @@ jobs:
         run: |
           echo "Verificando resolución DNS para api.streamlit.io..."
           nslookup api.streamlit.io
+        continue-on-error: true
+
+      - name: Verificar resultado de nslookup
+        if: failure()
+        run: |
+          echo "No se pudo resolver api.streamlit.io. Revisa la conectividad o el dominio."
 
       - name: Verificar conectividad a internet
         run: |
