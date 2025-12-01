@@ -41,6 +41,18 @@ jobs:
         run: |
           echo "Build completado."
 
+      # Diagnóstico de red antes del redeploy
+      - name: Verificar resolución DNS
+        run: |
+          echo "Verificando resolución DNS para api.streamlit.io..."
+          nslookup api.streamlit.io
+
+      - name: Verificar conectividad a internet
+        run: |
+          echo "Verificando conectividad a google.com..."
+          ping -c 4 google.com
+
+      # Solicitud de redeploy a Streamlit Cloud
       - name: Deploy to Streamlit Cloud
         run: |
           echo "Solicitando redeploy a Streamlit Cloud..."
