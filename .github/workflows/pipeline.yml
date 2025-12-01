@@ -3,60 +3,55 @@ name: Python CI/CD Pipeline - Ferretería D
 on:
   push:
     branches:
-      
-main
-dev
-feature
-pull_request:
-  branches:
-main
-workflow_dispatch:
+      - main
+      - dev
+      - feature
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      
-name: Checkout repository
-      uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-      
-name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
 
-      
-name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install streamlit pandas pytest
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install streamlit pandas pytest
 
-      
-name: Run tests
-      run: |
-        if [ -d tests ]; then
-          pytest tests/
-        else
-          echo "No hay carpeta 'tests', omitiendo pruebas."
-        fi
+      - name: Run tests
+        run: |
+          if [ -d tests ]; then
+            pytest tests/
+          else
+            echo "No hay carpeta 'tests', omitiendo pruebas."
+          fi
 
-      
-name: Build project
-      run: |
-        echo "Build completado."
+      - name: Build project
+        run: |
+          echo "Build completado."
 
-      
-name: Deploy to Streamlit Cloud
-      run: |
-        echo "Solicitando redeploy a Streamlit Cloud..."
-        curl -X POST "https://api.streamlit.io/v1/apps/redeploy" \-H "Authorization: Bearer ${{ secrets.STREAMLIT_API_KEY }}" \-H "Content-Type: application/json" \-d "{"repo": "${{ github.repository }}"}"
-      env:
-        STREAMLIT_API_KEY: ${{ secrets.STREAMLIT_API_KEY }}
+      - name: Deploy to Streamlit Cloud
+        run: |
+          echo "Solicitando redeploy a Streamlit Cloud..."
+          curl -X POST "https://api.streamlit.io/v1/apps/redeploy" \
+            -H "Authorization: Bearer ${{ secrets.STREAMLIT_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{"repo": "${{ github.repository }}"}'
+        env:
+          STREAMLIT_API_KEY: ${{ secrets.STREAMLIT_API_KEY }}
 
-      
-name: Notify
-      run: |
-        echo "Pipeline completado correctamente."
-        echo "Workflow: $GITHUB_WORKFLOW"
+      - name: Notify
+        run: |
+          echo "Pipeline completado correctamente."
+          echo "Workflow: $GITHUB_WORKFLOW"
