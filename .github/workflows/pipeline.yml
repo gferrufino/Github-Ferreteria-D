@@ -43,6 +43,7 @@ jobs:
 
       # Diagnóstico de red antes del redeploy
       - name: Verificar resolución DNS
+        id: dns_check
         run: |
           echo "Verificando resolución DNS para api.streamlit.io..."
           nslookup api.streamlit.io
@@ -51,15 +52,11 @@ jobs:
       - name: Verificar resultado de nslookup
         if: failure()
         run: |
-          echo "No se pudo resolver api.streamlit.io. Revisa la conectividad o el dominio."
+          echo "No se pudo resolver api.streamlit.io. No se intentará redeploy."
 
-      - name: Verificar conectividad a internet
-        run: |
-          echo "Verificando conectividad a google.com..."
-          ping -c 4 google.com
-
-      # Solicitud de redeploy a Streamlit Cloud
+      # Solo intentar redeploy si DNS fue resuelta correctamente
       - name: Deploy to Streamlit Cloud
+        if: success() && github.event_name != 'pull_request'
         run: |
           echo "Solicitando redeploy a Streamlit Cloud..."
           curl -X POST "https://api.streamlit.io/v1/apps/redeploy" \
@@ -73,3 +70,6 @@ jobs:
         run: |
           echo "Pipeline completado correctamente."
           echo "Workflow: $GITHUB_WORKFLOW"
+
+
+          
