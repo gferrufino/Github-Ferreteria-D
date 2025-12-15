@@ -93,10 +93,16 @@ def _ensure_envios_schema(cur: sqlite3.Cursor):
     CREATE TABLE IF NOT EXISTS envios (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         numero_factura TEXT,
+        numero_orden TEXT,
         fecha_envio TEXT,
         estado_envio TEXT DEFAULT 'despachado'
     );
     """)
+    # Backward compatible si ya existe sin columnas
+    cur.execute("PRAGMA table_info(envios);")
+    cols = {r[1] for r in cur.fetchall()}
+    if "numero_orden" not in cols:
+        cur.execute("ALTER TABLE envios ADD COLUMN numero_orden TEXT;")
 
 
 def _ensure_schema(conn: sqlite3.Connection):
@@ -127,6 +133,11 @@ def _next_code(cur: sqlite3.Cursor, tabla: str, campo: str, pref: str, regex: re
 
 
 def generar_numero_orden() -> str:
+    """
+    Mantengo esta función por compatibilidad, pero OJO:
+    Para evitar números repetidos, NO se debe usar dentro de una transacción
+    que inserta la orden (porque abre otra conexión).
+    """
     conn = get_conn()
     try:
         _ensure_schema(conn)
@@ -137,7 +148,33 @@ def generar_numero_orden() -> str:
 
 
 def _generar_numero_boleta(cur: sqlite3.Cursor) -> str:
+    # Este sí es correcto porque usa el mismo cursor/transacción
     return _next_code(cur, "boletas", "numero_boleta", _BL_PREFIX, _BL_RE)
+
+
+def _generar_numero_orden_tx(cur: sqlite3.Cursor) -> str:
+    """
+    ✅ Genera el siguiente número de orden usando el MISMO cursor y transacción.
+    Evita que quede pegado (OC-0010) o que se repita con distintos usuarios.
+    """
+    cur.execute("""
+        SELECT numero_orden
+        FROM ordenes_compra
+        ORDER BY id DESC
+        LIMIT 1
+    """)
+    row = cur.fetchone()
+
+    if not row:
+        return "OC-0001"
+
+    last = row[0]  # ej: "OC-0010"
+    try:
+        n = int(str(last).split("-")[1])
+    except Exception:
+        n = 0
+
+    return f"OC-{n+1:04d}"
 
 
 # ----------------- HELPERS -----------------
@@ -179,8 +216,15 @@ def agregar_orden(
         try:
             _ensure_schema(conn)
             cur = conn.cursor()
+
+            # ✅ Bloquea para escritura (evita colisiones)
             cur.execute("BEGIN IMMEDIATE;")
-            numero_orden = numero_orden_preasignado or generar_numero_orden()
+
+            # ✅ Generar número dentro de la MISMA transacción
+            numero_orden = numero_orden_preasignado
+            if not numero_orden:
+                numero_orden = _generar_numero_orden_tx(cur)
+
             cur.execute("""
                 INSERT INTO ordenes_compra
                 (numero_orden, cliente, direccion, telefono, comuna, region, items_json, total, user_id)
@@ -190,6 +234,7 @@ def agregar_orden(
                 comuna.strip(), region.strip(), json.dumps(clean_items, ensure_ascii=False),
                 neto, user_id
             ))
+
             conn.commit()
             return True, f"Orden {numero_orden} registrada correctamente", numero_orden
 
@@ -522,6 +567,7 @@ def listar_facturas_pendientes_envio():
         })
     return out
 
+
 def obtener_factura_por_numero(numero_factura: str):
     conn = get_conn()
     cur = conn.cursor()
@@ -536,7 +582,6 @@ def obtener_factura_por_numero(numero_factura: str):
     if not r:
         return None
 
-    # Necesitamos los ítems y datos del cliente → vienen de la boleta
     boleta = obtener_boleta_por_orden(r["numero_orden"])
 
     return {
@@ -555,6 +600,7 @@ def obtener_factura_por_numero(numero_factura: str):
         "items": boleta["items"],
     }
 
+
 def obtener_orden_por_factura(numero_factura: str):
     conn = get_conn()
     cur = conn.cursor()
@@ -569,7 +615,6 @@ def obtener_orden_por_factura(numero_factura: str):
 
     numero_orden = r[0]
 
-    # Recuperamos datos completos de la orden
     cur.execute("""
         SELECT cliente, direccion, comuna, region, telefono
         FROM ordenes_compra
@@ -590,29 +635,68 @@ def obtener_orden_por_factura(numero_factura: str):
         "telefono": row[4]
     }
 
+def listar_envios(limit: int = 200):
+    conn = get_conn()
+    try:
+        _ensure_schema(conn)
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT id, numero_factura, numero_orden, fecha_envio, estado_envio
+            FROM envios
+            ORDER BY id DESC
+            LIMIT ?
+        """, (int(limit),))
+        rows = cur.fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def actualizar_estado_envio(envio_id: int, nuevo_estado: str):
+    conn = get_conn()
+    try:
+        _ensure_schema(conn)
+        cur = conn.cursor()
+        cur.execute("UPDATE envios SET estado_envio=? WHERE id=?", (nuevo_estado, int(envio_id)))
+        conn.commit()
+        return True, "Estado de envío actualizado."
+    except Exception as e:
+        try: conn.rollback()
+        except: pass
+        return False, str(e)
+    finally:
+        conn.close()
+
+
 
 # ================================================================
 # ===================== ENVÍOS (RF5) =============================
 # ================================================================
-def registrar_envio(numero_factura: str):
+def registrar_envio(numero_factura: str, estado_envio: str = "despachado"):
     conn = get_conn()
     cur = conn.cursor()
     _ensure_envios_schema(cur)
+    _ensure_facturas_schema(cur)
+    _ensure_oc_schema(cur)
 
     fecha_envio = time.strftime("%Y-%m-%d %H:%M:%S")
 
+    cur.execute("SELECT numero_orden FROM facturas WHERE numero_factura = ?", (numero_factura,))
+    r = cur.fetchone()
+    numero_orden = r["numero_orden"] if r else None
+
     cur.execute("""
-        INSERT INTO envios (numero_factura, fecha_envio, estado_envio)
-        VALUES (?, ?, 'despachado')
-    """, (numero_factura, fecha_envio))
+        INSERT INTO envios (numero_factura, numero_orden, fecha_envio, estado_envio)
+        VALUES (?, ?, ?, ?)
+    """, (numero_factura, numero_orden, fecha_envio, estado_envio))
 
     cur.execute("""
         UPDATE facturas
-        SET estado = 'despachada'
+        SET estado = ?
         WHERE numero_factura = ?
-    """, (numero_factura,))
+    """, ("despachada" if estado_envio == "despachado" else "facturada", numero_factura))
 
     conn.commit()
     conn.close()
+    return True, f"Estado actualizado: {estado_envio}."
 
-    return True, "Producto despachado correctamente."

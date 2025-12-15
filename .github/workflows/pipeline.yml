@@ -1,75 +1,53 @@
-name: Python CI/CD Pipeline - Ferretería D
+name: Python CI - Ferretería D
 
 on:
   push:
     branches:
       - main
       - dev
-      - feature
+      - "feature/**"
   pull_request:
     branches:
       - main
   workflow_dispatch:
 
 jobs:
-  build-and-deploy:
+  test:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
+          cache: "pip"
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install streamlit pandas pytest
-
-      - name: Run tests
-        run: |
-          if [ -d tests ]; then
-            pytest tests/
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
           else
-            echo "No hay carpeta 'tests', omitiendo pruebas."
+            pip install streamlit pandas pytest
           fi
 
-      - name: Build project
+      # Importante si tu app está en src/
+      - name: Set PYTHONPATH
+        run: echo "PYTHONPATH=${{ github.workspace }}/src" >> $GITHUB_ENV
+
+      - name: Run tests (si existen)
         run: |
-          echo "Build completado."
+          if [ -d tests ]; then
+            pytest -q
+          else
+            echo "No hay carpeta tests/, omitiendo pruebas."
+          fi
 
-      # Diagnóstico de red antes del redeploy
-      - name: Verificar resolución DNS
-        id: dns_check
+      - name: Smoke test (import básico)
         run: |
-          echo "Verificando resolución DNS para api.streamlit.io..."
-          nslookup api.streamlit.io
-        continue-on-error: true
-
-      - name: Verificar resultado de nslookup
-        if: failure()
-        run: |
-          echo "No se pudo resolver api.streamlit.io. No se intentará redeploy."
-
-      # Solo intentar redeploy si DNS fue resuelta correctamente
-      - name: Deploy to Streamlit Cloud
-        if: success() && github.event_name != 'pull_request'
-        run: |
-          echo "Solicitando redeploy a Streamlit Cloud..."
-          curl -X POST "https://api.streamlit.io/v1/apps/redeploy" \
-            -H "Authorization: Bearer ${{ secrets.STREAMLIT_API_KEY }}" \
-            -H "Content-Type: application/json" \
-            -d '{"repo": "${{ github.repository }}"}'
-        env:
-          STREAMLIT_API_KEY: ${{ secrets.STREAMLIT_API_KEY }}
-
-      - name: Notify
-        run: |
-          echo "Pipeline completado correctamente."
-          echo "Workflow: $GITHUB_WORKFLOW"
-
-
-          
+          python -c "import sys; print(sys.path)"
+          python -c "import importlib; importlib.import_module('app'); print('OK: src/app.py importa bien')"
+        working-directory: src

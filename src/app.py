@@ -2,7 +2,8 @@ import streamlit as st
 import pandas as pd
 import login as auth
 import menu
-import orden_compra as oc
+import factura
+import envio
 
 # Inicializa DB / schema y usuario admin
 auth.create_tables()
@@ -33,7 +34,6 @@ def login_view():
     st.title("🔐 Login — Ferretería")
     tab_login, tab_register = st.tabs(["Ingresar", "Registrarme"])
 
-    # ----- LOGIN -----
     with tab_login:
         username = st.text_input("Usuario", key="login_user")
         password = st.text_input("Contraseña", type="password", key="login_pass")
@@ -51,7 +51,6 @@ def login_view():
             else:
                 st.error("Usuario o contraseña incorrectos")
 
-    # ----- REGISTRO -----
     with tab_register:
         st.subheader("Crear cuenta")
         r_user = st.text_input("Usuario nuevo", key="r_user")
@@ -81,7 +80,7 @@ def logout():
 
 
 # =======================================================
-# ADMINISTRAR USUARIOS
+# ADMINISTRAR USUARIOS (ADMIN)
 # =======================================================
 def admin_users_view():
     st.header("👥 Usuarios registrados")
@@ -138,105 +137,7 @@ def admin_users_view():
 
 
 # =======================================================
-# NUEVAS VISTAS (RF4 y RF5)
-# =======================================================
-
-def emitir_factura_view():
-    st.header("🧾 Emitir Factura")
-
-    ordenes = oc.listar_ordenes(limit=200, user_id=st.session_state.get("user_id"))
-
-    # Solo mostrar órdenes con boleta
-    opciones = {
-        f"{o['numero_orden']} — {o['cliente']} — {o['creado_en']}":
-        o["numero_orden"]
-        for o in ordenes
-        if oc.obtener_boleta_por_orden(o["numero_orden"])
-    }
-
-    if not opciones:
-        st.info("No hay órdenes con boleta disponible para facturar.")
-        return
-
-    sel = st.selectbox("Selecciona una orden", list(opciones.keys()))
-    numero_orden = opciones[sel]
-
-    if st.button("Emitir Factura", type="primary"):
-        ok, msg, fac = oc.crear_factura_para_orden(numero_orden)
-        if ok:
-            st.success(f"{msg} — Factura generada: {fac}")
-        else:
-            st.error(msg)
-
-
-def enviar_productos_view():
-    st.header("📦 Enviar Productos")
-
-    facturas = oc.listar_facturas_pendientes_envio()
-
-    if not facturas:
-        st.info("No hay facturas pendientes de envío.")
-        return
-
-    opciones = {
-        f"{f['numero_factura']} — Orden {f['numero_orden']} — Total ${f['total']}": f["numero_factura"]
-        for f in facturas
-    }
-
-    sel = st.selectbox("Selecciona una factura", list(opciones.keys()))
-    numero_factura = opciones[sel]
-
-    if st.button("Marcar como despachado", type="primary"):
-        ok, msg = oc.registrar_envio(numero_factura)
-        if ok:
-            st.success(msg)
-        else:
-            st.error("Error registrando el envío.")
-def mostrar_factura_view(factura):
-    st.markdown("## 📄 Factura emitida")
-    st.write(f"**Factura:** {factura['numero_factura']} — **Orden:** {factura['numero_orden']}")
-    st.write(f"**Fecha:** {factura['fecha']}")
-    st.write("---")
-
-    st.write(f"**Cliente:** {factura['cliente']}")
-    st.write(f"**Dirección:** {factura['direccion']}, {factura['comuna']}, {factura['region']}")
-    st.write(f"**Teléfono:** {factura['telefono']}")
-    st.write("---")
-
-    st.markdown("### 🛒 Ítems")
-    for it in factura["items"]:
-        st.write(f"- {it['producto']} — {it['cantidad']} x ${it['precio']:,}".replace(",", "."))
-
-    st.write("---")
-    st.write(f"**Subtotal:** ${int(factura['subtotal']):,}".replace(",", "."))
-    st.write(f"**IVA (19%):** ${int(factura['iva']):,}".replace(",", "."))
-    st.write(f"**Total:** ${int(factura['total']):,}".replace(",", "."))
-    st.write("---")
-
-
-# =======================================================
-# USUARIO NORMAL — Mis órdenes
-# =======================================================
-def my_orders_view():
-    st.header("🧾 Mis Órdenes")
-    uid = st.session_state.get("user_id")
-    data = oc.listar_ordenes(limit=200, user_id=uid)
-    if not data:
-        st.info("Aún no tienes órdenes registradas.")
-        return
-    rows = []
-    for d in data:
-        rows.append({
-            "N° Orden": d["numero_orden"],
-            "Cliente": d["cliente"],
-            "Total": d["total"],
-            "Fecha": d["creado_en"],
-        })
-    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
-
-
-# =======================================================
-# MAIN VIEW
+# MAIN VIEW / ROUTER
 # =======================================================
 def main_view():
     st.sidebar.title("Menú")
@@ -269,7 +170,6 @@ def main_view():
         f"({st.session_state.get('role', '')})"
     )
 
-    # Routing de vistas
     if choice == "Home":
         menu.home()
     elif choice == "Registrar Orden":
@@ -277,9 +177,9 @@ def main_view():
     elif choice == "Mis Órdenes":
         menu.listar_ordenes(user_id=st.session_state.get("user_id"))
     elif choice == "Emitir Factura":
-        emitir_factura_view()
+        factura.emitir_factura_view()
     elif choice == "Enviar Productos":
-        enviar_productos_view()
+        envio.enviar_productos_view()
     elif choice == "Usuarios registrados":
         admin_users_view()
     elif choice == "Cerrar sesión":
