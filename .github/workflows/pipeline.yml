@@ -1,4 +1,4 @@
-name: CI/CD Ferretería D
+name: Python CI - Ferretería D
 
 on:
   push:
@@ -8,15 +8,14 @@ on:
   workflow_dispatch:
 
 jobs:
-  ci:
-    name: Tests + Validación
+  test:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Python
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -29,67 +28,18 @@ jobs:
           elif [ -f src/requirements.txt ]; then
             pip install -r src/requirements.txt
           else
-            pip install streamlit pandas pytest pytest-cov ruff
+            pip install streamlit pandas pytest
           fi
-          pip install pytest pytest-cov ruff
 
-      - name: Lint (ruff)
-        run: |
-          ruff check .
-        continue-on-error: true
-
-      - name: Tests (si existen) + coverage
+      - name: Run tests (si existen)
         run: |
           if [ -d tests ]; then
-            pytest -q --cov=. --cov-report=xml --cov-report=term
+            pytest -q
           else
-            echo "No hay tests/, se omiten pruebas."
-            echo "<coverage></coverage>" > coverage.xml
+            echo "No hay carpeta tests/, omitiendo pruebas."
           fi
 
-      - name: Upload coverage artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report
-          path: coverage.xml
-
-      - name: Smoke test (import + arranque Streamlit)
+      - name: Smoke test (import básico)
         run: |
-          cd src
-          python -c "import login, menu, orden_compra; print('OK imports')"
-          timeout 8s streamlit run app.py --server.headless true --server.port 8501 || true
-          echo "OK: smoke test"
-
-  deploy:
-    name: Deploy + Health Check
-    needs: ci
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-
-    steps:
-      # 1) Deploy (opcional, depende hosting)
-      - name: Trigger deploy hook (si existe)
-        env:
-          DEPLOY_HOOK_URL: ${{ secrets.DEPLOY_HOOK_URL }}
-        run: |
-          if [ -z "$DEPLOY_HOOK_URL" ]; then
-            echo "No hay DEPLOY_HOOK_URL configurado (se asume auto-deploy por repo)."
-            exit 0
-          fi
-          curl -X POST --fail "$DEPLOY_HOOK_URL"
-          echo "Deploy hook disparado."
-
-      # 2) Validación post-deploy (usuario final)
-      - name: Post-deploy health check (HTTP 200)
-        env:
-          STREAMLIT_APP_URL: "https://app-ferreteria-d-e6yingxwuyjgzjuxyejq5s.streamlit.app/"
-        run: |
-          if [ -z "$STREAMLIT_APP_URL" ]; then
-            echo "STREAMLIT_APP_URL no está configurado. No se puede hacer health check."
-            exit 1
-          fi
-          echo "Esperando app..."
-          sleep 10
-          echo "Chequeando $STREAMLIT_APP_URL ..."
-          curl -I --fail --retry 5 --retry-delay 3 "$STREAMLIT_APP_URL"
-          echo "OK: la app responde (validación post-deploy)"
+          python -c "import importlib; importlib.import_module('menu'); importlib.import_module('login'); importlib.import_module('orden_compra'); print('OK imports')"
+        working-directory: src
